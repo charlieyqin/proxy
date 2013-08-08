@@ -2,36 +2,32 @@ package throttle
 
 import (
     "net"
-    "log"
 )
 
 type Conn struct {
 	net.Conn
-	sema chan struct{}
+    Throttler
 }
 
 func (c Conn) Close() error {
-	var v struct{}
-	c.sema <- v
+    _ = c.Throttler.Release()
     err := c.Conn.Close()
-    if err == nil {
-        log.Println(" - ", c.Conn)
-    } else {
-        log.Println("Close error: ", err)
-    }
 	return err
 }
 
 type Listener struct {
 	net.Listener
-	sema chan struct{}
+    Throttler
 }
 
 func (l Listener) Accept() (c net.Conn, err error) {
-	<-l.sema
+    err = l.Throttler.Acquire()
+    if err != nil {
+        panic(err)
+    }
+
 	c, err = l.Listener.Accept()
-	lc := Conn{c, l.sema}
-    log.Println(" + ", lc.Conn)
+	lc := Conn{c, l.Throttler}
 	return lc, err
 }
 
@@ -40,11 +36,7 @@ func NewListener(addr string, maxConn uint64) net.Listener {
 	if err != nil {
 		panic(err)
 	}
-	tl := Listener{l, make(chan struct{}, maxConn)}
-	for i := uint64(0); i < maxConn; i++ {
-		var v struct{}
-		tl.sema <- v
-	}
+	tl := Listener{l, NewCountingThrottler(maxConn)}
 	return tl
 }
 

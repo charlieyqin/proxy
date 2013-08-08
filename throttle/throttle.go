@@ -9,12 +9,12 @@ type CountingThrottler struct {
     sema chan struct {}
 }
 
-func (c *CountingThrottler) Acquire () error {
+func (c CountingThrottler) Acquire () error {
     <-c.sema
     return nil
 }
 
-func (c *CountingThrottler) Release () error {
+func (c CountingThrottler) Release () error {
     var v struct {}
     c.sema <- v
     return nil
